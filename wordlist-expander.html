@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>词库扩容工具</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body {
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+      background:#F8F7FC; color:#2D3436; line-height:1.6; padding:20px;
+    }
+    .container { max-width:900px; margin:0 auto; }
+    h1 { font-size:24px; color:#6C5CE7; margin-bottom:8px; }
+    .subtitle { color:#636E72; font-size:14px; margin-bottom:24px; }
+    .section {
+      background:#fff; border-radius:16px; padding:24px;
+      box-shadow:0 4px 20px rgba(108,92,231,0.08); margin-bottom:20px;
+    }
+    .section h2 { font-size:18px; margin-bottom:12px; color:#2D3436; }
+    .section p { font-size:14px; color:#636E72; margin-bottom:12px; }
+    textarea {
+      width:100%; min-height:120px; padding:14px; border:2px solid #E8E7F0;
+      border-radius:12px; font-size:14px; font-family:monospace;
+      resize:vertical; outline:none; transition:border-color 0.2s;
+    }
+    textarea:focus { border-color:#6C5CE7; }
+    .btn {
+      padding:12px 28px; border:none; border-radius:12px; font-size:15px;
+      font-weight:700; cursor:pointer; margin-top:12px; transition:all 0.2s;
+    }
+    .btn:active { transform:scale(0.96); }
+    .btn-primary { background:#6C5CE7; color:#fff; }
+    .btn-secondary { background:#00B894; color:#fff; }
+    .btn-outline { background:#fff; color:#6C5CE7; border:2px solid #6C5CE7; }
+    .btn-row { display:flex; gap:12px; flex-wrap:wrap; }
+    .output {
+      background:#2D3436; color:#00B894; padding:16px; border-radius:12px;
+      font-size:13px; font-family:monospace; white-space:pre-wrap;
+      word-break:break-all; margin-top:12px; max-height:400px; overflow-y:auto;
+    }
+    .emoji-map {
+      display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+      gap:8px; margin-top:12px;
+    }
+    .emoji-map-item {
+      display:flex; align-items:center; gap:8px; padding:8px 12px;
+      background:#F8F7FC; border-radius:10px; font-size:14px;
+    }
+    .emoji-map-item span:first-child { font-size:20px; }
+    .tab-row { display:flex; gap:8px; margin-bottom:16px; }
+    .tab {
+      padding:8px 20px; border:none; border-radius:10px; font-size:14px;
+      font-weight:600; cursor:pointer; background:#E8E7F0; color:#636E72;
+      transition:all 0.2s;
+    }
+    .tab.active { background:#6C5CE7; color:#fff; }
+    .tab-content { display:none; }
+    .tab-content.active { display:block; }
+    .hint { font-size:13px; color:#B2BEC3; margin-top:8px; }
+    .count-badge {
+      display:inline-block; background:#00B894; color:#fff; padding:2px 12px;
+      border-radius:20px; font-size:13px; font-weight:700; margin-left:8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>词库扩容工具</h1>
+    <p class="subtitle">将简单格式的单词列表批量转换为 WORD_LIST 兼容的 JSON 数据，支持自动匹配 Emoji</p>
+
+    <!-- Tab 切换 -->
+    <div class="tab-row">
+      <button class="tab active" onclick="switchTab('converter')">批量转换工具</button>
+      <button class="tab" onclick="switchTab('emoji-map')">Emoji 语义映射表</button>
+      <button class="tab" onclick="switchTab('format-guide')">格式说明 & 示例</button>
+    </div>
+
+    <!-- ========== 批量转换工具 ========== -->
+    <div id="converter" class="tab-content active">
+      <div class="section">
+        <h2>输入区 <span class="count-badge" id="inputCount">0 词</span></h2>
+        <p>每行一个单词，支持以下格式（用 <code>|</code> 或 <code>Tab</code> 分隔字段）：</p>
+
+        <div class="btn-row" style="margin-bottom:12px">
+          <button class="btn btn-outline" onclick="loadSample('full')">加载完整格式示例</button>
+          <button class="btn btn-outline" onclick="loadSample('simple')">加载简单格式示例</button>
+          <button class="btn btn-outline" onclick="loadSample('batch')">加载批量词表示例</button>
+        </div>
+
+        <textarea id="inputArea" placeholder="格式1（完整）:&#10;abandon|/əˈbændən/|vt. 放弃，抛弃|He abandoned his car.|他抛弃了他的车。|🏃&#10;&#10;格式2（简单，自动补全）:&#10;abandon&#10;ability&#10;abnormal&#10;&#10;格式3（带释义）:&#10;abandon|vt. 放弃，抛弃&#10;ability|n. 能力"></textarea>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" onclick="convert()">转换为 JSON</button>
+          <button class="btn btn-secondary" onclick="copyOutput()">复制结果</button>
+          <button class="btn btn-outline" onclick="downloadJSON()">下载 JSON 文件</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>输出结果</h2>
+        <div class="output" id="outputArea">点击「转换为 JSON」后结果将显示在这里...</div>
+      </div>
+    </div>
+
+    <!-- ========== Emoji 语义映射表 ========== -->
+    <div id="emoji-map" class="tab-content">
+      <div class="section">
+        <h2>Emoji 语义分类映射表</h2>
+        <p>根据单词语义类别选择合适的 Emoji，输入时填入最后一个字段即可。</p>
+
+        <div class="emoji-map" id="emojiGrid"></div>
+      </div>
+    </div>
+
+    <!-- ========== 格式说明 ========== -->
+    <div id="format-guide" class="tab-content">
+      <div class="section">
+        <h2>三种输入格式</h2>
+
+        <h3 style="margin:16px 0 8px; font-size:16px;">格式1：完整格式（推荐）</h3>
+        <p>用 <code>|</code> 分隔 6 个字段：单词|音标|释义|英文例句|中文例句|Emoji</p>
+        <textarea readonly style="min-height:80px">abandon|/əˈbændən/|vt. 放弃，抛弃|He abandoned his old car.|他抛弃了那辆旧车。|🏃
+ability|/əˈbɪləti/|n. 能力，才能|She has the ability to solve problems.|她有解决问题的能力。|💪</textarea>
+
+        <h3 style="margin:16px 0 8px; font-size:16px;">格式2：仅单词（自动补全）</h3>
+        <p>每行一个单词，工具自动补全音标占位、释义占位、默认例句、默认 Emoji。适合先录入单词后续再补例句。</p>
+        <textarea readonly style="min-height:60px">abandon
+ability
+abnormal</textarea>
+        <p class="hint">补全结果示例：{word:"abandon",phonetic:"",meaning:"",example:"He abandoned.",exampleCn:"",emoji:"📝"}</p>
+
+        <h3 style="margin:16px 0 8px; font-size:16px;">格式3：单词+释义（推荐快速录入）</h3>
+        <p>用 <code>|</code> 分隔 2 个字段，自动补全例句和 Emoji（按释义关键词匹配）</p>
+        <textarea readonly style="min-height:60px">abandon|vt. 放弃，抛弃
+ability|n. 能力，才能
+beautiful|adj. 美丽的，美好的</textarea>
+      </div>
+
+      <div class="section">
+        <h2>如何合并到主应用</h2>
+        <p>1. 用本工具生成 JSON 数组</p>
+        <p>2. 打开 <code>cet-vocab.html</code>，找到 <code>var WORD_LIST = [...]</code></p>
+        <p>3. 将生成的 JSON 追加到数组末尾（注意逗号）</p>
+        <p>4. 保存即可，无需修改其他代码</p>
+
+        <h3 style="margin:16px 0 8px; font-size:16px;">合并示例：</h3>
+        <textarea readonly style="min-height:100px">var WORD_LIST = [
+  // ... 原有100个单词 ...
+  {word:"animal",phonetic:"/ˈænɪml/",meaning:"n. 动物",example:"Lions are wild animals.",exampleCn:"狮子是野生动物。",emoji:"🦁"},
+  // ↓↓↓ 追加新词库 ↓↓↓
+  {word:"answer",phonetic:"/ˈɑːnsə/",meaning:"n./v. 回答",example:"Please answer the question.",exampleCn:"请回答这个问题。",emoji:"💬"},
+  {word:"anxious",phonetic:"/ˈæŋkʃəs/",meaning:"adj. 焦虑的",example:"She felt anxious about the exam.",exampleCn:"她对考试感到焦虑。",emoji:"😰"}
+  // ... 继续追加 ...
+];</textarea>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ========================================
+    // Emoji 语义映射表（按释义关键词自动匹配）
+    // ========================================
+    var EMOJI_MAP = {
+      // 情绪
+      "高兴|快乐|开心|喜悦|快乐": "😄",
+      "悲伤|伤心|悲哀|忧伤": "😢",
+      "愤怒|生气|恼怒": "😡",
+      "害怕|恐惧|畏惧|担心": "😨",
+      "惊讶|吃惊|惊奇": "😲",
+      "焦虑|着急|不安": "😰",
+      "喜欢|爱|喜爱": "❤️",
+      "讨厌|厌恶|憎恨": "👎",
+      // 动作
+      "跑|奔跑": "🏃",
+      "走|步行|散步": "🚶",
+      "飞|飞行|航班": "✈️",
+      "游泳|游": "🏊",
+      "吃|食物|餐|饭": "🍽️",
+      "喝|饮|酒": "🍷",
+      "睡|休息|梦": "😴",
+      "写|书写|记录": "✍️",
+      "读|阅读|书": "📖",
+      "说|讲|告诉|告诉": "🗣️",
+      "看|看见|观察": "👀",
+      "听|听见|声音": "👂",
+      "想|思考|认为": "🤔",
+      "做|制作|制造|创造": "🔨",
+      "买|购买|消费": "🛒",
+      "卖|出售|销售": "🏷️",
+      "学习|学|研究|学术": "🎓",
+      "教|教育|教授": "👨‍🏫",
+      "工作|劳动|职业": "💼",
+      "玩|游戏|娱乐": "🎮",
+      "笑|搞笑|幽默": "😂",
+      "哭|流泪": "😭",
+      // 自然
+      "天气|气候": "🌤️",
+      "雨|下雨": "🌧️",
+      "雪|下雪": "❄️",
+      "风|刮风": "🌪️",
+      "太阳|阳光|晴": "☀️",
+      "月|月亮": "🌙",
+      "星|星星|星空": "⭐",
+      "山|山脉": "⛰️",
+      "河|河流|溪": "🏞️",
+      "海|海洋": "🌊",
+      "树|森林|木": "🌳",
+      "花|花朵": "🌸",
+      "火|火焰|燃烧": "🔥",
+      "水|水源": "💧",
+      "土地|地面|土壤": "🌍",
+      // 动物
+      "动物|兽|野生动物": "🦁",
+      "狗|犬": "🐕",
+      "猫|猫咪": "🐈",
+      "鸟|飞禽": "🐦",
+      "鱼|鱼类": "🐟",
+      "马": "🐎",
+      "牛": "🐂",
+      "羊": "🐑",
+      "猪": "🐷",
+      "鸡": "🐔",
+      "蛇": "🐍",
+      "虫|昆虫": "🐛",
+      "蜜蜂|蜂蜜": "🐝",
+      // 人物
+      "人|人们|人类": "🧑",
+      "男人|男性": "👨",
+      "女人|女性": "👩",
+      "孩子|儿童|小孩": "🧒",
+      "婴儿|宝宝": "👶",
+      "老人|老年": "🧓",
+      "家庭|家人": "👨‍👩‍👧‍👦",
+      "朋友|友谊": "🤝",
+      // 物品
+      "房子|建筑|住宅": "🏠",
+      "车|汽车|车辆": "🚗",
+      "船|舰": "🚢",
+      "自行车|单车": "🚲",
+      "手机|电话": "📱",
+      "电脑|计算机": "💻",
+      "书|书籍": "📚",
+      "笔|钢笔": "🖊️",
+      "钟|表|时间": "⏰",
+      "钥匙": "🔑",
+      "锁": "🔒",
+      "灯|光|照明": "💡",
+      "伞|雨伞": "☂️",
+      "眼镜": "👓",
+      "鞋|鞋子": "👟",
+      "帽|帽子": "🎩",
+      "衣|衣服|服装": "👕",
+      // 食物
+      "面包": "🍞",
+      "蛋糕|甜点": "🍰",
+      "水果": "🍎",
+      "蔬菜": "🥬",
+      "肉|肉类": "🥩",
+      "蛋|鸡蛋": "🥚",
+      "奶|牛奶": "🥛",
+      "咖啡": "☕",
+      "茶": "🍵",
+      "糖|甜": "🍬",
+      "盐|咸": "🧂",
+      // 抽象
+      "时间|时期|时代": "⏳",
+      "空间|地方|位置": "📍",
+      "数量|数目|数字": "🔢",
+      "质量|品质": "✨",
+      "力量|力|能量": "💪",
+      "速度|快速": "⚡",
+      "安全|保护|防护": "🛡️",
+      "危险|风险|威胁": "⚠️",
+      "成功|成就|胜利": "🏆",
+      "失败|错误|失误": "❌",
+      "开始|起点|开端": "🚀",
+      "结束|终点|完结": "🏁",
+      "变化|改变|转变": "🔄",
+      "增长|增加|上升": "📈",
+      "减少|下降|降低": "📉",
+      "目标|目的|目标": "🎯",
+      "计划|设计|方案": "📋",
+      "规则|法律|规定": "📜",
+      "信息|数据|消息": "📊",
+      "知识|学问|智慧": "🧠",
+      "艺术|美术|绘画": "🎨",
+      "音乐|歌曲|旋律": "🎵",
+      "运动|体育|锻炼": "⚽",
+      "旅行|旅游|旅程": "✈️",
+      "冒险|危险|挑战": "🗺️",
+      "梦想|理想|幻想": "💭",
+      "记忆|回忆|记住": "🧠",
+      "语言|文字|话语": "🗣️",
+      "文化|文明": "🏛️",
+      "历史|古代|古老": "📜",
+      "未来|将来|前景": "🔮",
+      "科学|科技|技术": "🔬",
+      "医学|健康|医疗": "⚕️",
+      "金钱|财富|经济": "💰",
+      "商业|交易|市场": "🏪",
+      "战争|军事|战斗": "⚔️",
+      "和平|和谐": "🕊️",
+      "环境|生态|自然": "🌱",
+      "问题|难题|疑问": "❓",
+      "答案|解决|回应": "💬",
+      "观点|看法|角度": "📐",
+      "秘密|隐私|隐藏": "🔒",
+      "希望|期望|期待": "🌟",
+      "幸运|运气|机遇": "🍀",
+      // 交通
+      "飞机|航班|航空": "✈️",
+      "火车|列车|铁路": "🚂",
+      "公交|巴士": "🚌",
+      "出租车|的士": "🚕",
+      "地铁": "🚇",
+      // 颜色
+      "红|红色": "🔴",
+      "蓝|蓝色": "🔵",
+      "绿|绿色": "📗",
+      "黄|黄色": "🟡",
+      "黑|黑色": "⚫",
+      "白|白色": "⚪",
+      // 身体
+      "心|心脏|内心": "❤️",
+      "头|头部|大脑": "🧠",
+      "手|手臂": "✋",
+      "脚|腿|行走": "🦶",
+      "眼|眼睛|视觉": "👁️",
+      "耳|耳朵|听觉": "👂",
+      "口|嘴|嘴唇": "👄",
+      // 其他
+      "建筑|大楼|塔": "🏢",
+      "桥|桥梁": "🌉",
+      "路|道路|街道": "🛤️",
+      "门|入口|通道": "🚪",
+      "窗|窗户": "🪟",
+      "床|睡眠|卧室": "🛏️",
+      "桌|桌子|餐桌": "🪑",
+      "包|背包|书包": "🎒",
+      "礼物|赠送| present": "🎁",
+      "信|邮件|消息": "📮",
+      "地图|指南": "🗺️",
+      "钟表|闹钟": "⏰",
+      "相机|照片|拍照": "📷",
+      "电影|影院|影片": "🎬",
+      "电视|电视机": "📺",
+      "收音机|广播": "📻",
+      "时钟|计时": "⏱️",
+      "温度|热度|温暖": "🌡️",
+      "压力|紧张|压迫": "😰"
+    };
+
+    var DEFAULT_EMOJI = "📝";
+
+    // ========================================
+    // 根据释义自动匹配 Emoji
+    // ========================================
+    function matchEmoji(meaning) {
+      if (!meaning) return DEFAULT_EMOJI;
+      var keys = Object.keys(EMOJI_MAP);
+      for (var i = 0; i < keys.length; i++) {
+        var keywords = keys[i].split("|");
+        for (var j = 0; j < keywords.length; j++) {
+          if (meaning.indexOf(keywords[j]) >= 0) {
+            return EMOJI_MAP[keys[i]];
+          }
+        }
+      }
+      return DEFAULT_EMOJI;
+    }
+
+    // ========================================
+    // 生成默认例句（简单占位）
+    // ========================================
+    function genExample(word) {
+      var examples = [
+        "The word \"" + word + "\" is commonly used.",
+        "She understands the meaning of \"" + word + "\".",
+        "Can you use \"" + word + "\" in a sentence?",
+        "He learned \"" + word + "\" yesterday."
+      ];
+      return examples[word.length % examples.length];
+    }
+
+    function genExampleCn(word) {
+      var examples = [
+        "单词\"" + word + "\"很常用。",
+        "她理解\"" + word + "\"的含义。",
+        "你能用\"" + word + "\"造句吗？",
+        "他昨天学了\"" + word + "\"。"
+      ];
+      return examples[word.length % examples.length];
+    }
+
+    // ========================================
+    // 核心：解析输入并转换为 JSON
+    // ========================================
+    function convert() {
+      var input = document.getElementById('inputArea').value.trim();
+      if (!input) { alert('请先输入单词数据'); return; }
+
+      var lines = input.split('\n');
+      var results = [];
+      var lineNum = 0;
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (!line) continue;
+        lineNum++;
+
+        // 检测分隔符
+        var parts;
+        if (line.indexOf('|') >= 0) {
+          parts = line.split('|');
+        } else if (line.indexOf('\t') >= 0) {
+          parts = line.split('\t');
+        } else {
+          parts = [line];
+        }
+
+        // 去除每个字段首尾空格
+        parts = parts.map(function(p) { return p.trim(); });
+
+        var entry;
+
+        if (parts.length >= 6) {
+          // 完整格式：word|phonetic|meaning|example|exampleCn|emoji
+          entry = {
+            word: parts[0],
+            phonetic: parts[1],
+            meaning: parts[2],
+            example: parts[3],
+            exampleCn: parts[4],
+            emoji: parts[5] || matchEmoji(parts[2])
+          };
+        } else if (parts.length >= 2) {
+          // 简单格式：word|meaning
+          entry = {
+            word: parts[0],
+            phonetic: parts[1].indexOf('/') >= 0 ? parts[1] : "",
+            meaning: parts[1].indexOf('/') >= 0 ? (parts[2] || "") : parts[1],
+            example: genExample(parts[0]),
+            exampleCn: genExampleCn(parts[0]),
+            emoji: matchEmoji(parts[1].indexOf('/') >= 0 ? (parts[2] || "") : parts[1])
+          };
+          // 如果有第三字段（例句）
+          if (parts.length >= 4 && parts[2] && parts[3]) {
+            entry.example = parts[2];
+            entry.exampleCn = parts[3];
+          }
+        } else {
+          // 仅单词
+          entry = {
+            word: parts[0],
+            phonetic: "",
+            meaning: "",
+            example: genExample(parts[0]),
+            exampleCn: genExampleCn(parts[0]),
+            emoji: DEFAULT_EMOJI
+          };
+        }
+
+        results.push(entry);
+      }
+
+      // 生成 JSON 字符串
+      var json = JSON.stringify(results, null, 2);
+
+      // 格式化为 JS 数组项（带逗号）
+      var jsFormat = results.map(function(item) {
+        return '  {word:"' + item.word + '",phonetic:"' + item.phonetic + '",meaning:"' + item.meaning + '",example:"' + item.example + '",exampleCn:"' + item.exampleCn + '",emoji:"' + item.emoji + '"}';
+      }).join(',\n');
+
+      var output = '// 共 ' + results.length + ' 个单词\n';
+      output += '// 生成时间: ' + new Date().toLocaleString() + '\n\n';
+      output += jsFormat + '\n\n';
+      output += '// ===== JSON 格式（备用）=====\n';
+      output += json;
+
+      document.getElementById('outputArea').textContent = output;
+      document.getElementById('inputCount').textContent = results.length + ' 词';
+    }
+
+    // ========================================
+    // 复制输出
+    // ========================================
+    function copyOutput() {
+      var output = document.getElementById('outputArea').textContent;
+      if (!output || output.indexOf('点击') === 0) {
+        alert('请先点击「转换为 JSON」');
+        return;
+      }
+      var textarea = document.createElement('textarea');
+      textarea.value = output;
+      document.body.appendChild(textarea);
+      textarea.select();
+      try {
+        document.execCommand('copy');
+        alert('已复制到剪贴板！');
+      } catch(e) {
+        alert('复制失败，请手动选中复制');
+      }
+      document.body.removeChild(textarea);
+    }
+
+    // ========================================
+    // 下载 JSON 文件
+    // ========================================
+    function downloadJSON() {
+      var output = document.getElementById('outputArea').textContent;
+      if (!output || output.indexOf('点击') === 0) {
+        alert('请先点击「转换为 JSON」');
+        return;
+      }
+      var blob = new Blob([output], { type: 'text/plain;charset=utf-8' });
+      var link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = 'wordlist-expanded-' + Date.now() + '.txt';
+      link.click();
+    }
+
+    // ========================================
+    // 加载示例
+    // ========================================
+    function loadSample(type) {
+      var textarea = document.getElementById('inputArea');
+      if (type === 'full') {
+        textarea.value = [
+          'answer|/ˈɑːnsə/|n./v. 回答，答案|Please answer the question.|请回答这个问题。|💬',
+          'anxious|/ˈæŋkʃəs/|adj. 焦虑的，担心的|She felt anxious about the exam.|她对考试感到焦虑。|😰',
+          'apologize|/əˈpɒlədʒaɪz/|vi. 道歉|He apologized for being late.|他为迟到道了歉。|🙏',
+          'appear|/əˈpɪə/|vi. 出现，显得|A rainbow appeared in the sky.|天空中出现了一道彩虹。|🌈',
+          'appetite|/ˈæpɪtaɪt/|n. 食欲，胃口|The baby has a good appetite.|这个婴儿胃口很好。|🍽️'
+        ].join('\n');
+      } else if (type === 'simple') {
+        textarea.value = [
+          'answer',
+          'anxious',
+          'apologize',
+          'appear',
+          'appetite',
+          'apple',
+          'apply',
+          'approach',
+          'appropriate',
+          'approve'
+        ].join('\n');
+      } else if (type === 'batch') {
+        textarea.value = [
+          'answer|n./v. 回答，答案',
+          'anxious|adj. 焦虑的，担心的',
+          'apologize|vi. 道歉',
+          'appear|vi. 出现，显得',
+          'appetite|n. 食欲，胃口',
+          'apple|n. 苹果',
+          'apply|v. 申请，应用',
+          'approach|v. 接近 n. 方法',
+          'appropriate|adj. 合适的',
+          'approve|v. 批准，赞成',
+          'approximate|adj. 近似的',
+          'arbitrary|adj. 任意的，武断的',
+          'architect|n. 建筑师',
+          'argue|v. 争论，辩论',
+          'arise|vi. 出现，产生',
+          'arithmetic|n. 算术',
+          'arrange|v. 安排，排列',
+          'arrest|vt. 逮捕，拘留',
+          'arrival|n. 到达，到来',
+          'arrive|vi. 到达'
+        ].join('\n');
+      }
+      // 自动统计
+      var lines = textarea.value.trim().split('\n').filter(function(l) { return l.trim(); });
+      document.getElementById('inputCount').textContent = lines.length + ' 词';
+    }
+
+    // ========================================
+    // 渲染 Emoji 映射表
+    // ========================================
+    function renderEmojiMap() {
+      var grid = document.getElementById('emojiGrid');
+      var html = '';
+      var keys = Object.keys(EMOJI_MAP);
+      keys.forEach(function(key) {
+        html += '<div class="emoji-map-item"><span>' + EMOJI_MAP[key] + '</span><span>' + key + '</span></div>';
+      });
+      grid.innerHTML = html;
+    }
+
+    // ========================================
+    // Tab 切换
+    // ========================================
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+      document.querySelectorAll('.tab-content').forEach(function(c) { c.classList.remove('active'); });
+      event.target.classList.add('active');
+      document.getElementById(tabId).classList.add('active');
+    }
+
+    // 初始化
+    renderEmojiMap();
+  </script>
+</body>
+</html>
