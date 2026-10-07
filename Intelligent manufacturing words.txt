@@ -1,0 +1,19 @@
+PLM|产品生命周期管理（Product Lifecycle Management）|PLM software helps companies manage a product from design to disposal.
+CAD|计算机辅助设计（Computer-Aided Design）|Engineers use CAD to create precise 3D models of machine parts.
+CAE|计算机辅助工程（Computer-Aided Engineering）|CAE simulation can predict how a structure will behave under stress.
+MES|制造执行系统（Manufacturing Execution System）|The MES tracks production progress on the factory floor in real time.
+IOT|物联网（Internet of Things）|IoT sensors collect data from machines and send it to the cloud.
+RFID|射频识别（Radio Frequency Identification）|RFID tags are used to track inventory and workpieces automatically.
+Foresight|远见；前瞻性思维|Strategic foresight helps manufacturers anticipate future market changes.
+IM|智能制造（Intelligent Manufacturing）|IM combines automation, data, and AI to improve production efficiency.
+maturity|成熟度|The company assessed the maturity of its digital manufacturing systems.
+GE|通用电气（General Electric）|GE has developed industrial internet platforms for smart factories.
+APS|高级计划与排程（Advanced Planning and Scheduling）|APS software optimizes production schedules and resource allocation.
+ERP|企业资源计划（Enterprise Resource Planning）|ERP integrates finance, procurement, and production data in one system.
+SCM|供应链管理（Supply Chain Management）|Effective SCM ensures materials arrive on time and costs stay low.
+vertical|垂直的；纵向的|Vertical integration allows a company to control more stages of production.
+Hierarchy|层级；层次结构|Automation systems often follow a hierarchy from sensors to enterprise software.
+chrysler|克莱斯勒（汽车公司）|Chrysler adopted new manufacturing technologies to improve quality and speed.
+dimensions|维度；尺寸|Smart manufacturing can be analyzed from technological and organizational dimensions.
+modular|模块化的|A modular production line can be reconfigured quickly for different products.
+cyber-physical system|信息物理系统（CPS）|A cyber-physical system connects physical machines with digital computing and networks.
